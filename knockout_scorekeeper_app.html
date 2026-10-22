@@ -1,885 +1,143 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Knockout Scorekeeper & Elimination Tracker</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Phosphor Icons for modern vector iconography -->
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <!-- Canvas Confetti for winner celebration -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  <!-- Tone.js for clean procedural audio sound effects -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#eef2ff',
-              100: '#e0e7ff',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
-            },
-            danger: {
-              500: '#ef4444',
-              600: '#dc2626',
-            }
-          },
-          animation: {
-            'bounce-short': 'bounce 0.6s ease-in-out 2',
-            'shake': 'shake 0.4s ease-in-out',
-          },
-          keyframes: {
-            shake: {
-              '0%, 100%': { transform: 'translateX(0)' },
-              '20%, 60%': { transform: 'translateX(-6px)' },
-              '40%, 80%': { transform: 'translateX(6px)' },
-            }
-          }
-        }
-      }
-    };
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Score Tracker">
+  <link rel="manifest" href="manifest.json">
+  <title>Score Tracker</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .custom-scroll::-webkit-scrollbar {
-      height: 6px;
-      width: 6px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background-color: rgba(156, 163, 175, 0.4);
-      border-radius: 9999px;
-    }
-    .eliminated-card {
-      filter: grayscale(85%);
-      opacity: 0.65;
-      transition: all 0.3s ease;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f4f6f8; color: #222; }
+    h2, h3 { margin-top: 0; }
+    .card { background: #fff; padding: 18px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    input, textarea, button { width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px; margin: 6px 0 12px 0; border: 1px solid #ccc; border-radius: 8px; }
+    button { background: #007aff; color: white; border: none; font-weight: bold; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; font-size: 14px; }
+    .eliminated { color: #d9534f; font-weight: bold; }
+    .active { color: #28a745; font-weight: bold; }
   </style>
 </head>
-<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased flex flex-col transition-colors duration-200">
+<body>
 
-  <!-- Main App Navigation Header -->
-  <header class="w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-rose-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-          <i class="ph-bold ph-skull text-2xl"></i>
-        </div>
-        <div>
-          <h1 class="text-lg font-bold tracking-tight leading-tight flex items-center gap-2">
-            Knockout 100
-            <span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 font-semibold uppercase tracking-wider">Survival</span>
-          </h1>
-          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Reach or exceed the limit and you're Thrown Out!</p>
-        </div>
-      </div>
+  <div id="setup-view" class="card">
+    <h2>🎯 Score Tracker Setup</h2>
+    <label>Max Score (Elimination Threshold):</label>
+    <input type="number" id="max-score" value="100">
+    <label>Player Names (one per line):</label>
+    <textarea id="player-names" rows="4">Alice&#10;Bob&#10;Charlie</textarea>
+    <button onclick="startGame()">Start Game</button>
+  </div>
 
-      <div class="flex items-center gap-2">
-        <button id="soundToggleBtn" onclick="toggleAudio()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors" title="Toggle Sound">
-          <i id="soundIcon" class="ph-bold ph-speaker-high text-lg"></i>
-        </button>
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors" title="Toggle Dark/Light Mode">
-          <i id="themeIcon" class="ph-bold ph-moon text-lg"></i>
-        </button>
-        <button id="resetAppBtn" onclick="confirmResetGame()" class="hidden text-xs font-semibold px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1.5">
-          <i class="ph-bold ph-arrow-counter-clockwise"></i> New Game
-        </button>
-      </div>
+  <div id="game-view" style="display:none;">
+    <div class="card" id="input-card">
+      <h3 id="round-title">Round 1 Scores</h3>
+      <div id="round-inputs"></div>
+      <button onclick="submitRound()">Submit Scores</button>
     </div>
-  </header>
 
-  <!-- Notification Banner Modal (Replaces alert) -->
-  <div id="toastNotification" class="fixed top-16 right-5 z-50 transform translate-y-[-150%] opacity-0 transition-all duration-300 pointer-events-none">
-    <div class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 border border-slate-700 dark:border-slate-300">
-      <i id="toastIcon" class="ph-fill ph-info text-indigo-500 text-xl"></i>
-      <span id="toastMsg" class="text-sm font-medium">Notification message</span>
+    <div class="card">
+      <h3>Leaderboard</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+      <button onclick="resetGame()" style="background:#6c757d; margin-top:15px;">New Game</button>
     </div>
   </div>
 
-  <!-- Main Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
-
-    <!-- VIEW 1: Game Setup Screen -->
-    <section id="setupView" class="max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center">
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
-        <div class="text-center mb-8">
-          <div class="inline-flex p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-3">
-            <i class="ph-duotone ph-users-three text-3xl"></i>
-          </div>
-          <h2 class="text-2xl font-extrabold tracking-tight">Configure Your Match</h2>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Configure player roster and elimination thresholds.</p>
-        </div>
-
-        <div class="space-y-6">
-          <!-- Threshold Limit Setting -->
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-              Elimination Score Limit
-            </label>
-            <div class="flex items-center gap-3">
-              <input type="number" id="thresholdInput" value="100" min="20" max="1000" step="5" class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <span class="text-sm font-semibold text-slate-500 whitespace-nowrap">points (Default 100)</span>
-            </div>
-            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1.5">Players who reach or pass this total are instantly thrown out.</p>
-          </div>
-
-          <!-- Player Names Configuration -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Players Roster (<span id="playerCountLabel">5</span>)
-              </label>
-              <button onclick="addPlayerSetupField()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
-                <i class="ph-bold ph-plus"></i> Add Player
-              </button>
-            </div>
-            
-            <div id="playerInputsContainer" class="space-y-2.5 max-h-72 overflow-y-auto pr-1 custom-scroll">
-              <!-- Populated dynamically via JS with 5 players -->
-            </div>
-          </div>
-
-          <!-- Quick Game Mode presets -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs">
-            <span class="font-medium text-slate-600 dark:text-slate-300">Ruleset: Knockout / Throw Out at 100</span>
-            <span class="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 font-bold">Standard</span>
-          </div>
-
-          <!-- Start Match Button -->
-          <button onclick="startGame()" class="w-full py-4 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transform active:scale-[0.99] transition-all flex items-center justify-center gap-2">
-            <i class="ph-bold ph-play"></i> Start Knockout Match
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 2: Active Match Dashboard -->
-    <section id="gameView" class="hidden flex-1 flex flex-col gap-6">
-      <!-- Status & Top Controls Bar -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <div class="text-xs text-slate-400 uppercase font-semibold">Current Round</div>
-            <div id="roundIndicator" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">Round 1</div>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 flex items-center justify-center">
-            <i class="ph-bold ph-arrows-clockwise text-xl"></i>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <div class="text-xs text-slate-400 uppercase font-semibold">Active In Game</div>
-            <div id="activePlayersCount" class="text-2xl font-black text-emerald-600 dark:text-emerald-400">5 / 5</div>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center">
-            <i class="ph-bold ph-shield-check text-xl"></i>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <div class="text-xs text-slate-400 uppercase font-semibold">Thrown Out</div>
-            <div id="knockedOutCount" class="text-2xl font-black text-rose-500">0</div>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-500 flex items-center justify-center">
-            <i class="ph-bold ph-skull text-xl"></i>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <div class="text-xs text-slate-400 uppercase font-semibold">Limit Bar</div>
-            <div id="targetScoreDisplay" class="text-2xl font-black text-slate-700 dark:text-slate-300">100 pts</div>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-500 flex items-center justify-center">
-            <i class="ph-bold ph-flag-banner text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      <!-- Player Cards Grid -->
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-base font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <i class="ph-bold ph-user-list text-indigo-500"></i> Player Status Tracker
-          </h2>
-          <span class="text-xs text-slate-500">Auto-updates upon round submission</span>
-        </div>
-        <div id="playerCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          <!-- Populated dynamically via JS -->
-        </div>
-      </div>
-
-      <!-- Round Input & Quick Points Deck -->
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
-          <div>
-            <h3 class="text-lg font-bold flex items-center gap-2">
-              <i class="ph-bold ph-pencil-simple-line text-indigo-600 dark:text-indigo-400"></i>
-              Enter Scores for Round <span id="currentRoundTitle">1</span>
-            </h3>
-            <p class="text-xs text-slate-500">Enter round points added to each survivor. Eliminated players are disabled.</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="undoLastRound()" id="undoBtn" disabled class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors">
-              <i class="ph-bold ph-arrow-u-up-left"></i> Undo Last Round
-            </button>
-            <button onclick="clearCurrentInputs()" class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 transition-colors">
-              <i class="ph-bold ph-eraser"></i> Clear Inputs
-            </button>
-          </div>
-        </div>
-
-        <form id="roundScoreForm" onsubmit="event.preventDefault(); submitRound();" class="mt-6">
-          <div id="roundInputsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-            <!-- Dynamic input rows per player -->
-          </div>
-
-          <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/60">
-            <div class="text-xs text-slate-500 flex items-center gap-1">
-              <i class="ph-fill ph-lightbulb text-amber-500"></i>
-              Tip: Use quick increment chips or type custom numbers directly. Empty equals 0 points.
-            </div>
-            <button type="submit" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm shadow-md shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all">
-              <i class="ph-bold ph-check"></i> Submit Round & Update Scores
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Round History Log Table -->
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm overflow-hidden flex flex-col">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-bold flex items-center gap-2">
-            <i class="ph-bold ph-table text-indigo-500"></i> Round History Log
-          </h3>
-          <span id="roundsRecordedCount" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">0 Rounds Logged</span>
-        </div>
-
-        <div class="overflow-x-auto custom-scroll -mx-5 px-5 sm:mx-0 sm:px-0">
-          <table class="w-full text-left text-sm whitespace-nowrap">
-            <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
-              <tr id="historyTableHeader">
-                <!-- Injected via JS -->
-              </tr>
-            </thead>
-            <tbody id="historyTableBody" class="divide-y divide-slate-100 dark:divide-slate-800/60">
-              <tr>
-                <td colspan="6" class="py-8 text-center text-slate-400 italic">No rounds submitted yet. Scores will appear here.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 3: Winner Modal / Celebration View -->
-    <div id="winnerModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl relative transform scale-95 transition-transform duration-300" id="winnerCard">
-        <div class="w-20 h-20 rounded-3xl bg-amber-100 dark:bg-amber-950/80 text-amber-500 mx-auto flex items-center justify-center mb-4 shadow-lg shadow-amber-500/20">
-          <i class="ph-fill ph-trophy text-4xl"></i>
-        </div>
-        <span class="text-xs font-black tracking-widest uppercase text-amber-500">Last Survivor Standing</span>
-        <h2 id="winnerName" class="text-3xl font-extrabold mt-1 text-slate-900 dark:text-white">Player 1</h2>
-        <p id="winnerSummary" class="text-sm text-slate-500 dark:text-slate-400 mt-2">Survived all rounds under the score threshold!</p>
-
-        <div class="my-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 flex justify-around">
-          <div>
-            <div class="text-xs text-slate-400 font-semibold uppercase">Final Score</div>
-            <div id="winnerFinalScore" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">0</div>
-          </div>
-          <div class="w-px bg-slate-200 dark:bg-slate-700"></div>
-          <div>
-            <div class="text-xs text-slate-400 font-semibold uppercase">Total Rounds</div>
-            <div id="winnerTotalRounds" class="text-2xl font-black text-slate-700 dark:text-slate-300">0</div>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-2.5">
-          <button onclick="restartWithSamePlayers()" class="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2">
-            <i class="ph-bold ph-arrows-clockwise"></i> Rematch with Same Players
-          </button>
-          <button onclick="closeWinnerModalAndReview()" class="w-full py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            View Final Standings
-          </button>
-          <button onclick="confirmResetGame()" class="w-full py-2.5 px-4 rounded-xl text-rose-500 hover:text-rose-600 text-xs font-bold transition-colors">
-            Configure New Players
-          </button>
-        </div>
-      </div>
-    </div>
-  </main>
-
   <script>
-    // Game State Object
-    const state = {
-      threshold: 100,
-      players: [], // [{ id, name, scores: [], isOut: false, outRound: null }]
-      roundNumber: 1,
-      history: [], // [{ round: 1, playerScores: { playerId: number | 'out' } }]
-      audioEnabled: true,
-      soundSynthesizersReady: false
-    };
-
-    // Tone.js Sound Synthesizer Setup
-    let synth, metalSynth;
-    function initAudio() {
-      if (state.soundSynthesizersReady) return;
-      try {
-        synth = new Tone.PolySynth(Tone.Synth).toDestination();
-        synth.volume.value = -8;
-        metalSynth = new Tone.MetalSynth().toDestination();
-        metalSynth.volume.value = -16;
-        state.soundSynthesizersReady = true;
-      } catch (e) {
-        console.warn("Audio Context init deferred:", e);
-      }
-    }
-
-    function playSound(type) {
-      if (!state.audioEnabled) return;
-      initAudio();
-      try {
-        if (Tone.context.state !== 'running') {
-          Tone.start();
-        }
-        if (type === 'add') {
-          synth.triggerAttackRelease("C5", "16n");
-        } else if (type === 'round') {
-          synth.triggerAttackRelease(["E4", "G4", "B4"], "8n");
-        } else if (type === 'out') {
-          metalSynth.triggerAttackRelease("16n", Tone.now());
-          synth.triggerAttackRelease(["C3", "F#2"], "4n");
-        } else if (type === 'win') {
-          const now = Tone.now();
-          synth.triggerAttackRelease("C4", "8n", now);
-          synth.triggerAttackRelease("E4", "8n", now + 0.1);
-          synth.triggerAttackRelease("G4", "8n", now + 0.2);
-          synth.triggerAttackRelease("C5", "4n", now + 0.3);
-        }
-      } catch (err) {
-        // Fallback gracefully without breaking UI
-      }
-    }
-
-    function toggleAudio() {
-      state.audioEnabled = !state.audioEnabled;
-      const icon = document.getElementById('soundIcon');
-      if (state.audioEnabled) {
-        icon.className = 'ph-bold ph-speaker-high text-lg';
-        showToast('Sound enabled');
-      } else {
-        icon.className = 'ph-bold ph-speaker-slash text-lg';
-        showToast('Sound muted');
-      }
-    }
-
-    // Dark Mode Theme Toggle
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      const icon = document.getElementById('themeIcon');
-      icon.className = isDark ? 'ph-bold ph-sun text-lg' : 'ph-bold ph-moon text-lg';
-    }
-
-    // Toast Alert Helper
-    let toastTimeout;
-    function showToast(message, isDanger = false) {
-      const toast = document.getElementById('toastNotification');
-      const msg = document.getElementById('toastMsg');
-      const icon = document.getElementById('toastIcon');
-
-      msg.innerText = message;
-      icon.className = isDanger ? 'ph-fill ph-warning-circle text-rose-500 text-xl' : 'ph-fill ph-check-circle text-emerald-500 text-xl';
-
-      toast.classList.remove('translate-y-[-150%]', 'opacity-0');
-      toast.classList.add('translate-y-0', 'opacity-100');
-
-      clearTimeout(toastTimeout);
-      toastTimeout = setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-[-150%]', 'opacity-0');
-      }, 3000);
-    }
-
-    // Setup Screen Roster Management
-    const defaultRoster = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"];
-
-    function renderSetupPlayerInputs(roster = defaultRoster) {
-      const container = document.getElementById('playerInputsContainer');
-      container.innerHTML = '';
-      roster.forEach((name, index) => {
-        container.appendChild(createPlayerInputRow(name, index));
+    // Register Service Worker for true offline capability
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.error);
       });
-      updateSetupCounter();
     }
 
-    function createPlayerInputRow(val, idx) {
-      const div = document.createElement('div');
-      div.className = "flex items-center gap-2 player-setup-row";
-      div.innerHTML = `
-        <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center font-bold text-xs select-none">
-          ${idx + 1}
-        </div>
-        <input type="text" value="${val}" placeholder="Player ${idx + 1} Name" class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <button type="button" onclick="removePlayerSetupRow(this)" class="p-2.5 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Remove Player">
-          <i class="ph-bold ph-trash"></i>
-        </button>
-      `;
-      return div;
-    }
-
-    function addPlayerSetupField() {
-      const rows = document.querySelectorAll('.player-setup-row');
-      if (rows.length >= 12) {
-        showToast("Maximum 12 players allowed.", true);
-        return;
-      }
-      const container = document.getElementById('playerInputsContainer');
-      const newNum = rows.length + 1;
-      container.appendChild(createPlayerInputRow(`Player ${newNum}`, rows.length));
-      updateSetupCounter();
-    }
-
-    function removePlayerSetupRow(btn) {
-      const rows = document.querySelectorAll('.player-setup-row');
-      if (rows.length <= 2) {
-        showToast("Minimum 2 players required for knockout match.", true);
-        return;
-      }
-      btn.closest('.player-setup-row').remove();
-      // Re-index remaining labels
-      document.querySelectorAll('.player-setup-row').forEach((row, i) => {
-        row.querySelector('div').innerText = i + 1;
-      });
-      updateSetupCounter();
-    }
-
-    function updateSetupCounter() {
-      const count = document.querySelectorAll('.player-setup-row').length;
-      document.getElementById('playerCountLabel').innerText = count;
-    }
+    let players = {};
+    let maxScore = 100;
+    let roundNum = 1;
 
     function startGame() {
-      const rawThreshold = parseInt(document.getElementById('thresholdInput').value, 10);
-      if (isNaN(rawThreshold) || rawThreshold < 10) {
-        showToast("Please enter a valid threshold (min 10 points).", true);
-        return;
-      }
+      maxScore = parseInt(document.getElementById('max-score').value) || 100;
+      const names = document.getElementById('player-names').value.split('\n').map(n => n.trim()).filter(n => n);
+      if (names.length < 2) return alert('Enter at least 2 players');
 
-      const inputElements = document.querySelectorAll('.player-setup-row input');
-      const names = [];
-      inputElements.forEach((inp, idx) => {
-        const val = inp.value.trim();
-        names.push(val.length > 0 ? val : `Player ${idx + 1}`);
-      });
+      players = {};
+      names.forEach(name => players[name] = []);
+      roundNum = 1;
 
-      if (names.length < 2) {
-        showToast("You need at least 2 players.", true);
-        return;
-      }
-
-      state.threshold = rawThreshold;
-      state.roundNumber = 1;
-      state.history = [];
-      state.players = names.map((name, index) => ({
-        id: 'p_' + index + '_' + Date.now(),
-        name: name,
-        scores: [],
-        isOut: false,
-        outRound: null
-      }));
-
-      // Switch Screens
-      document.getElementById('setupView').classList.add('hidden');
-      document.getElementById('gameView').classList.remove('hidden');
-      document.getElementById('resetAppBtn').classList.remove('hidden');
-
-      updateDashboardHeader();
-      renderPlayerCards();
+      document.getElementById('setup-view').style.display = 'none';
+      document.getElementById('game-view').style.display = 'block';
       renderRoundInputs();
-      renderHistoryTable();
-      playSound('round');
-      showToast("Game started! Knockout threshold: " + state.threshold + " points");
-    }
-
-    function getPlayerTotal(player) {
-      return player.scores.reduce((sum, val) => sum + val, 0);
-    }
-
-    function updateDashboardHeader() {
-      document.getElementById('roundIndicator').innerText = `Round ${state.roundNumber}`;
-      document.getElementById('currentRoundTitle').innerText = `${state.roundNumber}`;
-      document.getElementById('targetScoreDisplay').innerText = `${state.threshold} pts`;
-
-      const active = state.players.filter(p => !p.isOut).length;
-      const eliminated = state.players.filter(p => p.isOut).length;
-      const total = state.players.length;
-
-      document.getElementById('activePlayersCount').innerText = `${active} / ${total}`;
-      document.getElementById('knockedOutCount').innerText = `${eliminated}`;
-      document.getElementById('undoBtn').disabled = state.history.length === 0;
-    }
-
-    function renderPlayerCards() {
-      const grid = document.getElementById('playerCardsGrid');
-      grid.innerHTML = '';
-
-      // Sort by score ascending (leaders first)
-      const sorted = [...state.players].sort((a, b) => {
-        if (a.isOut && !b.isOut) return 1;
-        if (!a.isOut && b.isOut) return -1;
-        return getPlayerTotal(a) - getPlayerTotal(b);
-      });
-
-      sorted.forEach(p => {
-        const total = getPlayerTotal(p);
-        const progressPct = Math.min(100, Math.round((total / state.threshold) * 100));
-        const isNearDanger = total >= (state.threshold * 0.8) && !p.isOut;
-        
-        let statusBadge = ``;
-        let cardBorder = `border-slate-200 dark:border-slate-800`;
-        let barColor = `bg-indigo-600`;
-
-        if (p.isOut) {
-          statusBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-black bg-rose-500/10 text-rose-500 border border-rose-500/20 uppercase tracking-wide flex items-center gap-1">
-            <i class="ph-bold ph-skull"></i> THROWN OUT
-          </span>`;
-          cardBorder = `border-rose-300 dark:border-rose-900/40`;
-          barColor = `bg-rose-500`;
-        } else if (isNearDanger) {
-          statusBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wide flex items-center gap-1 animate-pulse">
-            <i class="ph-bold ph-warning"></i> DANGER (${state.threshold - total} pts left)
-          </span>`;
-          cardBorder = `border-amber-400 dark:border-amber-600/50`;
-          barColor = `bg-amber-500`;
-        } else {
-          statusBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 uppercase tracking-wide flex items-center gap-1">
-            <i class="ph-bold ph-check"></i> ACTIVE
-          </span>`;
-          barColor = `bg-indigo-500`;
-        }
-
-        const card = document.createElement('div');
-        card.className = `p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border ${cardBorder} shadow-sm transition-all duration-300 flex flex-col justify-between ${p.isOut ? 'eliminated-card' : ''}`;
-        card.innerHTML = `
-          <div>
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <h4 class="font-extrabold text-base truncate" title="${p.name}">${p.name}</h4>
-              ${statusBadge}
-            </div>
-
-            <div class="flex items-baseline justify-between mb-1.5">
-              <span class="text-xs font-medium text-slate-400">Total Score:</span>
-              <span class="text-2xl font-black ${p.isOut ? 'text-rose-500 line-through' : 'text-slate-900 dark:text-white'}">
-                ${total} <span class="text-xs font-normal text-slate-400 font-sans">/ ${state.threshold}</span>
-              </span>
-            </div>
-
-            <!-- Health / Score Progress Bar -->
-            <div class="w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-3">
-              <div class="h-full ${barColor} rounded-full transition-all duration-500" style="width: ${progressPct}%"></div>
-            </div>
-          </div>
-
-          <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-            <span>Rounds played: ${p.scores.length}</span>
-            <span>${p.isOut ? `Knocked out in R${p.outRound}` : `${state.threshold - total} pts buffer`}</span>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
+      renderLeaderboard();
     }
 
     function renderRoundInputs() {
-      const container = document.getElementById('roundInputsGrid');
+      const container = document.getElementById('round-inputs');
       container.innerHTML = '';
+      document.getElementById('round-title').innerText = `Round ${roundNum} Scores`;
 
-      state.players.forEach(p => {
-        const total = getPlayerTotal(p);
-        const div = document.createElement('div');
-        div.className = `p-3.5 rounded-2xl border transition-all ${
-          p.isOut 
-            ? 'bg-slate-100/60 dark:bg-slate-900/40 border-dashed border-slate-300 dark:border-slate-800 opacity-60' 
-            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm'
-        }`;
+      const active = Object.keys(players).filter(p => players[p].reduce((a,b)=>a+b, 0) < maxScore);
 
-        if (p.isOut) {
-          div.innerHTML = `
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-bold text-slate-400 line-through truncate">${p.name}</span>
-              <span class="text-[10px] font-bold uppercase tracking-wider text-rose-500 px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60">Out</span>
-            </div>
-            <input type="text" disabled value="Thrown Out" class="w-full px-3 py-2 text-center rounded-xl bg-slate-200/50 dark:bg-slate-900 text-slate-400 text-xs font-bold cursor-not-allowed">
-          `;
-        } else {
-          div.innerHTML = `
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-bold truncate">${p.name}</span>
-              <span class="text-xs font-semibold text-slate-500">${total} pts</span>
-            </div>
-            <div class="relative mb-2">
-              <input type="number" min="0" max="500" placeholder="0" data-player-id="${p.id}" class="round-score-input w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-base focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-            </div>
-            <!-- Quick Increments -->
-            <div class="grid grid-cols-4 gap-1">
-              <button type="button" onclick="quickIncrement('${p.id}', 5)" class="py-1 px-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 transition-colors">+5</button>
-              <button type="button" onclick="quickIncrement('${p.id}', 10)" class="py-1 px-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 transition-colors">+10</button>
-              <button type="button" onclick="quickIncrement('${p.id}', 20)" class="py-1 px-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 transition-colors">+20</button>
-              <button type="button" onclick="quickIncrement('${p.id}', 25)" class="py-1 px-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 transition-colors">+25</button>
-            </div>
-          `;
-        }
-        container.appendChild(div);
-      });
-    }
-
-    function quickIncrement(playerId, amount) {
-      const input = document.querySelector(`.round-score-input[data-player-id="${playerId}"]`);
-      if (!input) return;
-      const current = parseInt(input.value, 10) || 0;
-      input.value = current + amount;
-      playSound('add');
-      // Subtle pulse on input
-      input.classList.add('ring-2', 'ring-indigo-500');
-      setTimeout(() => input.classList.remove('ring-2', 'ring-indigo-500'), 250);
-    }
-
-    function clearCurrentInputs() {
-      document.querySelectorAll('.round-score-input').forEach(input => input.value = '');
-    }
-
-    function submitRound() {
-      const inputs = document.querySelectorAll('.round-score-input');
-      const roundData = {
-        round: state.roundNumber,
-        scores: {}
-      };
-
-      let newlyEliminated = [];
-
-      // Update player scores
-      state.players.forEach(p => {
-        if (p.isOut) {
-          roundData.scores[p.id] = 'out';
-          return;
-        }
-
-        const input = document.querySelector(`.round-score-input[data-player-id="${p.id}"]`);
-        const roundPts = input ? (parseInt(input.value, 10) || 0) : 0;
-        
-        p.scores.push(roundPts);
-        roundData.scores[p.id] = roundPts;
-
-        const newTotal = getPlayerTotal(p);
-        if (newTotal >= state.threshold) {
-          p.isOut = true;
-          p.outRound = state.roundNumber;
-          newlyEliminated.push(p);
-        }
-      });
-
-      state.history.push(roundData);
-      state.roundNumber++;
-
-      // Trigger feedback & animations
-      if (newlyEliminated.length > 0) {
-        playSound('out');
-        const names = newlyEliminated.map(p => p.name).join(', ');
-        showToast(`💥 ${names} reached ≥${state.threshold} pts and got THROWN OUT!`, true);
-      } else {
-        playSound('round');
-        showToast(`Round ${state.roundNumber - 1} recorded successfully!`);
-      }
-
-      updateDashboardHeader();
-      renderPlayerCards();
-      renderRoundInputs();
-      renderHistoryTable();
-
-      // Check Winner / End of game condition
-      checkGameStatus();
-    }
-
-    function checkGameStatus() {
-      const survivors = state.players.filter(p => !p.isOut);
-
-      // If only 1 survivor remains, or everyone was knocked out in the same round
-      if (survivors.length === 1) {
-        triggerWinnerCelebration(survivors[0]);
-      } else if (survivors.length === 0) {
-        // Tie breaker / sudden death condition: least points among eliminated this round
-        const lastEliminated = [...state.players].sort((a, b) => getPlayerTotal(a) - getPlayerTotal(b));
-        triggerWinnerCelebration(lastEliminated[0], true);
-      }
-    }
-
-    function triggerWinnerCelebration(winner, wasDraw = false) {
-      playSound('win');
-
-      // Confetti burst
-      try {
-        confetti({
-          particleCount: 120,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-        setTimeout(() => {
-          confetti({
-            particleCount: 60,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0 }
-          });
-          confetti({
-            particleCount: 60,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1 }
-          });
-        }, 300);
-      } catch (e) {}
-
-      const modal = document.getElementById('winnerModal');
-      const card = document.getElementById('winnerCard');
-      
-      document.getElementById('winnerName').innerText = winner.name;
-      document.getElementById('winnerFinalScore').innerText = `${getPlayerTotal(winner)} / ${state.threshold}`;
-      document.getElementById('winnerTotalRounds').innerText = `${state.roundNumber - 1}`;
-      document.getElementById('winnerSummary').innerText = wasDraw 
-        ? "Surpassed threshold on the final round, but finished with the lowest overall score!" 
-        : "Outlasted all opponents and avoided elimination!";
-
-      modal.classList.remove('hidden');
-      setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        card.classList.remove('scale-95');
-        card.classList.add('scale-100');
-      }, 20);
-    }
-
-    function closeWinnerModalAndReview() {
-      const modal = document.getElementById('winnerModal');
-      modal.classList.add('opacity-0');
-      setTimeout(() => {
-        modal.classList.add('hidden');
-      }, 250);
-    }
-
-    function restartWithSamePlayers() {
-      closeWinnerModalAndReview();
-      state.roundNumber = 1;
-      state.history = [];
-      state.players.forEach(p => {
-        p.scores = [];
-        p.isOut = false;
-        p.outRound = null;
-      });
-      updateDashboardHeader();
-      renderPlayerCards();
-      renderRoundInputs();
-      renderHistoryTable();
-      playSound('round');
-      showToast("Game restarted with same players!");
-    }
-
-    function undoLastRound() {
-      if (state.history.length === 0) return;
-
-      const lastRound = state.history.pop();
-      state.roundNumber--;
-
-      state.players.forEach(p => {
-        const recordedScore = lastRound.scores[p.id];
-        if (recordedScore !== 'out') {
-          p.scores.pop();
-        }
-        // If they got knocked out in this specific round, restore them
-        if (p.isOut && p.outRound === lastRound.round) {
-          p.isOut = false;
-          p.outRound = null;
-        }
-      });
-
-      updateDashboardHeader();
-      renderPlayerCards();
-      renderRoundInputs();
-      renderHistoryTable();
-      showToast(`Reverted Round ${lastRound.round}`);
-    }
-
-    function renderHistoryTable() {
-      const header = document.getElementById('historyTableHeader');
-      const body = document.getElementById('historyTableBody');
-      const counter = document.getElementById('roundsRecordedCount');
-
-      counter.innerText = `${state.history.length} Rounds Logged`;
-
-      // Build Headers
-      header.innerHTML = `
-        <th class="py-3 px-4 font-bold">Round</th>
-        ${state.players.map(p => `
-          <th class="py-3 px-4 font-bold text-center">
-            ${p.name}
-          </th>
-        `).join('')}
-      `;
-
-      if (state.history.length === 0) {
-        body.innerHTML = `<tr><td colspan="${state.players.length + 1}" class="py-8 text-center text-slate-400 italic">No rounds submitted yet. Scores will appear here.</td></tr>`;
+      if (active.length <= 1) {
+        document.getElementById('input-card').innerHTML = active.length === 1 
+          ? `<h3>🏆 Winner: ${active[0]}!</h3>` 
+          : `<h3>⚠️ All players eliminated!</h3>`;
         return;
       }
 
-      body.innerHTML = '';
-
-      // Loop through history backwards (most recent round on top)
-      [...state.history].reverse().forEach(h => {
-        const row = document.createElement('tr');
-        row.className = "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors";
-
-        let cells = `<td class="py-3 px-4 font-bold text-indigo-600 dark:text-indigo-400">R${h.round}</td>`;
-
-        state.players.forEach(p => {
-          const score = h.scores[p.id];
-          if (score === 'out') {
-            cells += `<td class="py-3 px-4 text-center font-bold text-xs text-rose-500 uppercase"><span class="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60">Out</span></td>`;
-          } else {
-            cells += `<td class="py-3 px-4 text-center font-semibold text-slate-700 dark:text-slate-300">+${score}</td>`;
-          }
-        });
-
-        row.innerHTML = cells;
-        body.appendChild(row);
+      active.forEach(name => {
+        const label = document.createElement('label');
+        label.innerText = `${name}'s points:`;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `score-${name}`;
+        input.value = 0;
+        container.appendChild(label);
+        container.appendChild(input);
       });
     }
 
-    function confirmResetGame() {
-      if (state.history.length > 0) {
-        // Confirmation fallback modal or clean view switch
-        document.getElementById('winnerModal').classList.add('hidden');
-        document.getElementById('gameView').classList.add('hidden');
-        document.getElementById('resetAppBtn').classList.add('hidden');
-        document.getElementById('setupView').classList.remove('hidden');
-      } else {
-        document.getElementById('gameView').classList.add('hidden');
-        document.getElementById('resetAppBtn').classList.add('hidden');
-        document.getElementById('setupView').classList.remove('hidden');
+    function submitRound() {
+      const active = Object.keys(players).filter(p => players[p].reduce((a,b)=>a+b, 0) < maxScore);
+      active.forEach(name => {
+        const val = parseInt(document.getElementById(`score-${name}`).value) || 0;
+        players[name].push(val);
+      });
+      roundNum++;
+      renderRoundInputs();
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard() {
+      const tbody = document.getElementById('leaderboard-body');
+      tbody.innerHTML = '';
+      for (const [name, history] of Object.entries(players)) {
+        const total = history.reduce((a, b) => a + b, 0);
+        const isEliminated = total >= maxScore;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${name}</strong></td>
+          <td>${total}</td>
+          <td class="${isEliminated ? 'eliminated' : 'active'}">${isEliminated ? 'Eliminated' : 'Active'}</td>
+        `;
+        tbody.appendChild(tr);
       }
     }
 
-    // Initial setup bootstrap
-    window.addEventListener('DOMContentLoaded', () => {
-      renderSetupPlayerInputs(defaultRoster);
-    });
+    function resetGame() {
+      document.getElementById('setup-view').style.display = 'block';
+      document.getElementById('game-view').style.display = 'none';
+    }
   </script>
 </body>
 </html>
